@@ -524,7 +524,9 @@
                             </select>
                         </div>
                     </div>
-
+		<div style="text-align: right; margin-bottom: 10px;">
+    			<button class="btn btn-danger" onclick="deleteAllExpenses()">🗑️ Xóa Tất Cả</button>
+		</div>
                     <div class="expense-list" id="expenseList">
                         <div id="transactionsList"></div>
                     </div>
@@ -1513,7 +1515,17 @@
             result.push(current); // Thêm phần tử cuối cùng
             return result.map(s => s.trim().replace(/^"|"$/g, '')); // Loại bỏ khoảng trắng và dấu ngoặc kép thừa
         }
-
+	// Xóa toàn bộ giao dịch
+	function deleteAllExpenses() {
+		if (confirm("⚠️ Bạn có chắc chắn muốn xóa TẤT CẢ giao dịch không?")) {
+        		expenses = []; // reset mảng
+        		saveData();    // lưu lại localStorage
+        		updateTransactionList(); 
+        		updateStats(currentPeriod);
+       			updateLimitProgress();
+        		showNotification("🗑️ Đã xóa toàn bộ giao dịch!");
+    		}
+	}
     </script>
 </body>
 </html>
