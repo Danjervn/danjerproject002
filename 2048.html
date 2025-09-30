@@ -1,99 +1,294 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>2048</title>
+import React, { useState, useEffect, useCallback } from 'react';
+import { RotateCcw, Trophy } from 'lucide-react';
 
-  <link href="style/main.css" rel="stylesheet" type="text/css">
-  <link rel="shortcut icon" href="favicon.ico">
-  <link rel="apple-touch-icon" href="meta/apple-touch-icon.png">
-  <link rel="apple-touch-startup-image" href="meta/apple-touch-startup-image-640x1096.png" media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)"> <!-- iPhone 5+ -->
-  <link rel="apple-touch-startup-image" href="meta/apple-touch-startup-image-640x920.png"  media="(device-width: 320px) and (device-height: 480px) and (-webkit-device-pixel-ratio: 2)"> <!-- iPhone, retina -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+const Game2048 = () => {
+  const [grid, setGrid] = useState([]);
+  const [score, setScore] = useState(0);
+  const [bestScore, setBestScore] = useState(0);
+  const [gameOver, setGameOver] = useState(false);
+  const [won, setWon] = useState(false);
 
-  <meta name="HandheldFriendly" content="True">
-  <meta name="MobileOptimized" content="320">
-  <meta name="viewport" content="width=device-width, target-densitydpi=160dpi, initial-scale=1.0, maximum-scale=1, user-scalable=no, minimal-ui">
-</head>
-<body>
-  <div class="container">
-    <div class="heading">
-      <h1 class="title">2048</h1>
-      <div class="scores-container">
-        <div class="score-container">0</div>
-        <div class="best-container">0</div>
+  // --- Logic Khởi tạo và Lưới ---
+
+  const initGrid = useCallback(() => {
+    const newGrid = Array(4).fill(null).map(() => Array(4).fill(0));
+    addNewTile(newGrid);
+    addNewTile(newGrid);
+    return newGrid;
+  }, []);
+
+  useEffect(() => {
+    // Khởi tạo trạng thái game và điểm cao nhất
+    setGrid(initGrid());
+    const savedBest = localStorage.getItem('best2048') || 0;
+    setBestScore(parseInt(savedBest));
+  }, [initGrid]);
+
+  const addNewTile = (currentGrid) => {
+    const emptyCells = [];
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        if (currentGrid[i][j] === 0) {
+          emptyCells.push({ i, j });
+        }
+      }
+    }
+    if (emptyCells.length > 0) {
+      const { i, j } = emptyCells[Math.floor(Math.random() * emptyCells.length)];
+      // 90% cơ hội là 2, 10% cơ hội là 4
+      currentGrid[i][j] = Math.random() < 0.9 ? 2 : 4;
+    }
+  };
+
+  const checkGameOver = (grid) => {
+    // Kiểm tra ô trống
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        if (grid[i][j] === 0) return false;
+        // Kiểm tra khả năng hợp nhất ngang
+        if (j < 3 && grid[i][j] === grid[i][j + 1]) return false;
+        // Kiểm tra khả năng hợp nhất dọc
+        if (i < 3 && grid[i][j] === grid[i + 1][j]) return false;
+      }
+    }
+    return true;
+  };
+
+  const rotateGrid = (grid) => {
+    // Quay lưới 90 độ theo chiều kim đồng hồ
+    const newGrid = Array(4).fill(null).map(() => Array(4).fill(0));
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        newGrid[j][3 - i] = grid[i][j];
+      }
+    }
+    return newGrid;
+  };
+
+  // --- Logic Di chuyển ---
+
+  const moveLeft = (grid) => {
+    let newGrid = grid.map(row => [...row]);
+    let moved = false;
+    let addedScore = 0;
+
+    for (let i = 0; i < 4; i++) {
+      let row = newGrid[i].filter(val => val !== 0); // Loại bỏ số 0
+      
+      // Hợp nhất
+      for (let j = 0; j < row.length - 1; j++) {
+        if (row[j] === row[j + 1]) {
+          row[j] *= 2;
+          addedScore += row[j];
+          row.splice(j + 1, 1); // Xóa ô đã hợp nhất
+          if (row[j] === 2048 && !won) {
+            setWon(true);
+          }
+        }
+      }
+      
+      // Thêm số 0 vào cuối
+      while (row.length < 4) {
+        row.push(0);
+      }
+      
+      // Kiểm tra xem hàng có thay đổi không
+      if (JSON.stringify(row) !== JSON.stringify(newGrid[i])) {
+        moved = true;
+      }
+      newGrid[i] = row;
+    }
+    return { grid: newGrid, moved, addedScore };
+  };
+
+  // Sử dụng useCallback để ổn định hàm `move`
+  const move = useCallback((direction) => {
+    setGrid(prevGrid => {
+      if (gameOver) return prevGrid;
+
+      let newGrid = prevGrid.map(row => [...row]);
+      let rotations = 0;
+
+      if (direction === 'right') rotations = 2;
+      else if (direction === 'up') rotations = 3;
+      else if (direction === 'down') rotations = 1;
+
+      // 1. Quay lưới để di chuyển sang trái
+      for (let i = 0; i < rotations; i++) {
+        newGrid = rotateGrid(newGrid);
+      }
+
+      // 2. Di chuyển sang trái
+      const { grid: movedGrid, moved, addedScore } = moveLeft(newGrid);
+
+      if (moved) {
+        // Cập nhật điểm
+        const newScore = score + addedScore;
+        setScore(newScore);
+        if (newScore > bestScore) {
+          setBestScore(newScore);
+          localStorage.setItem('best2048', newScore.toString());
+        }
+
+        // 3. Hoàn tác phép quay
+        let finalGrid = movedGrid;
+        // Quay 4 - N lần để trở về (N là số lần quay ban đầu)
+        const counterRotations = (4 - rotations) % 4; 
+        for (let i = 0; i < counterRotations; i++) {
+          finalGrid = rotateGrid(finalGrid);
+        }
+
+        // 4. Thêm ô mới
+        addNewTile(finalGrid);
+
+        // 5. Kiểm tra Game Over
+        if (checkGameOver(finalGrid)) {
+          setGameOver(true);
+        }
+
+        return finalGrid; // Cập nhật state lưới
+      }
+
+      return prevGrid; // Không di chuyển, giữ nguyên lưới
+    });
+  }, [score, bestScore, gameOver]); // Thêm dependencies cần thiết
+
+  // --- Xử lý sự kiện bàn phím ---
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        const direction = e.key.replace('Arrow', '').toLowerCase();
+        move(direction);
+      }
+    };
+
+    // Thêm listener
+    window.addEventListener('keydown', handleKeyDown);
+    // Cleanup
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [move]); // Chỉ phụ thuộc vào `move` (là useCallback), giúp tối ưu
+
+  // --- Hàm Reset ---
+
+  const resetGame = () => {
+    setGrid(initGrid());
+    setScore(0);
+    setGameOver(false);
+    setWon(false);
+  };
+
+  // --- Styling cho ô (Tile Styling) ---
+
+  const getTileColor = (value) => {
+    const colors = {
+      0: 'bg-gray-200',
+      2: 'bg-amber-100',
+      4: 'bg-amber-200',
+      8: 'bg-orange-300',
+      16: 'bg-orange-400',
+      32: 'bg-orange-500',
+      64: 'bg-red-400',
+      128: 'bg-yellow-300',
+      256: 'bg-yellow-400',
+      512: 'bg-yellow-500',
+      1024: 'bg-yellow-600',
+      2048: 'bg-yellow-700'
+    };
+    return colors[value] || 'bg-purple-500';
+  };
+
+  const getTileTextColor = (value) => {
+    return value > 4 ? 'text-white' : 'text-gray-700';
+  };
+
+  // --- JSX Render ---
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-purple-100 to-blue-100 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-4xl font-bold text-gray-800">2048</h1>
+          <button
+            onClick={resetGame}
+            className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+          >
+            <RotateCcw size={20} />
+            Chơi lại
+          </button>
+        </div>
+
+        <div className="flex gap-4 mb-6">
+          <div className="bg-orange-400 rounded-lg p-3 flex-1 text-center">
+            <div className="text-white text-sm font-semibold">ĐIỂM</div>
+            <div className="text-white text-2xl font-bold">{score}</div>
+          </div>
+          <div className="bg-orange-500 rounded-lg p-3 flex-1 text-center">
+            <div className="text-white text-sm font-semibold flex items-center justify-center gap-1">
+              <Trophy size={16} />
+              TỐT NHẤT
+            </div>
+            <div className="text-white text-2xl font-bold">{bestScore}</div>
+          </div>
+        </div>
+
+        <div className="bg-orange-300 rounded-lg p-4 relative">
+          <div className="grid grid-cols-4 gap-3">
+            {grid.map((row, i) =>
+              row.map((cell, j) => (
+                <div
+                  key={`${i}-${j}`}
+                  className={`${getTileColor(cell)} ${getTileTextColor(cell)} w-16 h-16 rounded-lg flex items-center justify-center text-2xl font-bold transition-all duration-150 transform`}
+                >
+                  {cell !== 0 && cell}
+                </div>
+              ))
+            )}
+          </div>
+
+          {gameOver && (
+            <div className="absolute inset-0 bg-white bg-opacity-90 rounded-lg flex flex-col items-center justify-center">
+              <div className="text-4xl font-bold text-red-500 mb-4">Game Over!</div>
+              <button
+                onClick={resetGame}
+                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold"
+              >
+                Thử lại
+              </button>
+            </div>
+          )}
+
+          {won && !gameOver && (
+            <div className="absolute inset-0 bg-yellow-400 bg-opacity-95 rounded-lg flex flex-col items-center justify-center">
+              <div className="text-4xl font-bold text-white mb-4">Bạn thắng! 🎉</div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setWon(false)}
+                  className="bg-white text-yellow-600 px-6 py-3 rounded-lg font-semibold"
+                >
+                  Tiếp tục
+                </button>
+                <button
+                  onClick={resetGame}
+                  className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 rounded-lg font-semibold"
+                >
+                  Chơi lại
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 text-center text-gray-600 text-sm">
+          <p className="font-semibold mb-2">Cách chơi:</p>
+          <p>Dùng phím mũi tên **← → ↑ ↓** để di chuyển ô</p>
+          <p>Ghép các ô có cùng số để tạo ô lớn hơn</p>
+          <p className="mt-2 text-orange-600 font-semibold">Mục tiêu: Đạt ô 2048!</p>
+        </div>
       </div>
     </div>
+  );
+};
 
-    <div class="above-game">
-      <p class="game-intro">Join the numbers and get to the <strong>2048 tile!</strong></p>
-      <a class="restart-button">New Game</a>
-    </div>
-
-    <div class="game-container">
-      <div class="game-message">
-        <p></p>
-        <div class="lower">
-	        <a class="keep-playing-button">Keep going</a>
-          <a class="retry-button">Try again</a>
-        </div>
-      </div>
-
-      <div class="grid-container">
-        <div class="grid-row">
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-        </div>
-        <div class="grid-row">
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-        </div>
-        <div class="grid-row">
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-        </div>
-        <div class="grid-row">
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-          <div class="grid-cell"></div>
-        </div>
-      </div>
-
-      <div class="tile-container">
-
-      </div>
-    </div>
-
-    <p class="game-explanation">
-      <strong class="important">How to play:</strong> Use your <strong>arrow keys</strong> to move the tiles. When two tiles with the same number touch, they <strong>merge into one!</strong>
-    </p>
-    <hr>
-    <p>
-    <strong class="important">Note:</strong> This site is the official version of 2048. You can play it on your phone via <a href="http://git.io/2048">http://git.io/2048.</a> All other apps or sites are derivatives or fakes, and should be used with caution.
-    </p>
-    <hr>
-    <p>
-    Created by <a href="http://gabrielecirulli.com" target="_blank">Gabriele Cirulli.</a> Based on <a href="https://itunes.apple.com/us/app/1024!/id823499224" target="_blank">1024 by Veewo Studio</a> and conceptually similar to <a href="http://asherv.com/threes/" target="_blank">Threes by Asher Vollmer.</a>
-    </p>
-  </div>
-
-  <script src="js/bind_polyfill.js"></script>
-  <script src="js/classlist_polyfill.js"></script>
-  <script src="js/animframe_polyfill.js"></script>
-  <script src="js/keyboard_input_manager.js"></script>
-  <script src="js/html_actuator.js"></script>
-  <script src="js/grid.js"></script>
-  <script src="js/tile.js"></script>
-  <script src="js/local_storage_manager.js"></script>
-  <script src="js/game_manager.js"></script>
-  <script src="js/application.js"></script>
-</body>
-</html>
+export default Game2048;
