@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Hệ Thống Quản Lý Chi Tiêu + AI Trợ Lý (Hoàn chỉnh)</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+  <style>
+    /* --- THU GỌN CSS: mix từ 2 file, responsive --- */
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Segoe UI, Roboto, Arial; background:linear-gradient(135deg,#f0f2f5,#e8eef8);padding:20px;min-height:100vh}
+    .container{max-width:1200px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.08)}
+    .header{background:linear-gradient(90deg,#4facfe,#00f2fe);color:#fff;padding:22px;text-align:center}
+    .header h1{font-size:22px}
+    .tabs{display:flex;background:#f1f3f5;gap:6px;padding:8px 12px;flex-wrap:wrap}
+    .tab-button{border:0;background:transparent;padding:10px 14px;border-radius:8px;cursor:pointer;font-weight:600}
+    .tab-button.active{background:#fff;color:#007bff;box-shadow:0 4px 12px rgba(0,0,0,0.06)}
+    .content{padding:20px}
+    .grid{display:grid;grid-template-columns:1fr 420px;gap:18px}
+    @media (max-width:980px){.grid{grid-template-columns:1fr}}
+    .card{background:#fbfdff;padding:14px;border-radius:10px;box-shadow:0 4px 12px rgba(16,24,40,0.03)}
+    label{display:block;font-weight:600;margin-bottom:6px;color:#333}
+    input[type=text],input[type=date],input[type=number],select,textarea{width:100%;padding:10px;border:1px solid #dfe7ef;border-radius:8px}
+    .btn{display:inline-block;padding:10px 14px;border-radius:8px;border:0;cursor:pointer;font-weight:700}
+    .btn-primary{background:#007bff;color:#fff}
+    .btn-success{background:#11998e;color:#fff}
+    .btn-warning{background:#f59e0b;color:#fff}
+    .btn-danger{background:#dc3545;color:#fff}
+    .expense-list{max-height:360px;overflow:auto;margin-top:12px}
+    .expense-item{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:10px;background:#fff;border-radius:8px;margin-bottom:10px;border-left:4px solid #007bff}
+    .small{font-size:13px;color:#555}
+    .summary-row{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+    .summary-card{flex:1;min-width:140px;padding:12px;border-radius:8px;background:linear-gradient(90deg,#667eea,#764ba2);color:#fff}
+    .progress-bar{height:14px;background:#eef3fb;border-radius:999px;overflow:hidden}
+    .progress-fill{height:100%;width:0%;text-align:right;padding-right:6px;line-height:14px;color:#fff;font-weight:700}
+    .chat-box{height:320px;overflow:auto;padding:12px;background:#fff;border-radius:8px;border:1px solid #e6eef8}
+    .chat-message{padding:8px 12px;border-radius:12px;margin-bottom:8px;max-width:78%}
+    .user-message{background:#e0f7fa;margin-left:auto;text-align:right}
+    .bot-message{background:#f3e5f5;margin-right:auto;text-align:left}
+    .file-controls{display:flex;gap:8px;align-items:center;margin-top:8px}
+    .modal{display:none;position:fixed;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;z-index:999}
+    .modal .box{background:#fff;padding:18px;border-radius:10px;max-width:520px;width:96%}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>💰 Hệ Thống Quản Lý Chi Tiêu &amp; 🤖 AI Trợ Lý — Hoàn chỉnh</h1>
+      <div class="small">Kết hợp: ghi giao dịch, tìm kiếm, giới hạn, biểu đồ, CSV, AI (mock + logic)</div>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Main tabs">
+      <button class="tab-button active" onclick="showTab('transactions', this)">🏠 Giao Dịch</button>
+      <button class="tab-button" onclick="showTab('search', this)">🔍 Tìm Kiếm</button>
+      <button class="tab-button" onclick="showTab('reports', this)">📊 Báo Cáo</button>
+      <button class="tab-button" onclick="showTab('limits', this)">⚠️ Giới Hạn</button>
+      <button class="tab-button" onclick="showTab('ai', this)">🤖 AI Trợ Lý</button>
+    </div>
+
+    <div class="content">
+      <!-- TRANSACTIONS TAB -->
+      <div id="transactions" class="tab-panel">
+        <div class="grid">
+          <div>
+            <div class="card">
+              <h3>➕ Thêm giao dịch</h3>
+              <form id="expenseForm">
+                <div style="display:grid;gap:8px">
+                  <div>
+                    <label for="date">Ngày</label>
+                    <input id="date" type="date" required />
+                  </div>
+                  <div>
+                    <label for="category">Danh mục</label>
+                    <select id="category" required>
+                      <option value="">-- Chọn --</option>
+                      <option>Ăn Uống</option><option>Di chuyển</option><option>Mua sắm</option>
+                      <option>Học tập</option><option>Giải trí</option><option>Y tế</option>
+                      <option>Hóa đơn</option><option>Khác</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label for="amount">Số tiền (VNĐ)</label>
+                    <input id="amount" type="number" min="0" step="1000" required />
+                  </div>
+                  <div>
+                    <label for="description">Ghi chú</label>
+                    <textarea id="description" rows="2" placeholder="Mô tả..."></textarea>
+                  </div>
+                  <div style="display:flex;gap:8px;">
+                    <button class="btn btn-primary" type="submit">➕ Thêm</button>
+                    <button type="button" class="btn btn-success" onclick="exportToCSV()">💾 Xuất CSV</button>
+                    <input id="csvFileInput" type="file" accept=".csv" style="display:none" onchange="importFromCSV(this)" />
+                    <button type="button" class="btn btn-warning" onclick="document.getElementById('csvFileInput').click()">📂 Nhập CSV</button>
+                  </div>
+                </div>
+              </form>
+              <div id="alertContainer"></div>
+            </div>
+
+            <div class="card" style="margin-top:14px">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <h3>📋 Danh sách</h3>
+                <div>
+                  <button class="btn btn-danger" onclick="deleteAllExpenses()">🗑️ Xóa tất cả</button>
+                </div>
+              </div>
+
+              <div style="margin-top:8px;display:flex;gap:8px">
+                <input id="quickSearch" placeholder="Tìm nhanh..." oninput="updateTransactionList()" />
+                <select id="sortBy" onchange="updateTransactionList()">
+                  <option value="date-desc">Ngày (mới nhất)</option>
+                  <option value="date-asc">Ngày (cũ nhất)</option>
+                  <option value="amount-desc">Số tiền (cao nhất)</option>
+                  <option value="amount-asc">Số tiền (thấp nhất)</option>
+                </select>
+              </div>
+
+              <div class="expense-list" id="transactionsList" style="margin-top:10px"></div>
+            </div>
+          </div>
+
+          <aside>
+            <div class="card">
+              <h3>📊 Tóm tắt nhanh</h3>
+              <div class="summary-row" id="summaryCards">
+                <!-- cards injected -->
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:12px">
+              <h3>🔔 Thông báo</h3>
+              <div id="notifArea" class="small">Không có thông báo nào</div>
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <!-- SEARCH TAB -->
+      <div id="search" class="tab-panel" style="display:none">
+        <div class="card">
+          <h3>🔍 Tìm kiếm nâng cao</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">
+            <div><label>Từ ngày</label><input id="searchFromDate" type="date" /></div>
+            <div><label>Đến ngày</label><input id="searchToDate" type="date" /></div>
+            <div><label>Danh mục</label>
+              <select id="searchCategory"><option value="">Tất cả</option>
+                <option>Ăn Uống</option><option>Di chuyển</option><option>Mua sắm</option>
+                <option>Học tập</option><option>Giải trí</option><option>Y tế</option>
+                <option>Hóa đơn</option><option>Khác</option>
+              </select>
+            </div>
+            <div><label>Từ (VNĐ)</label><input id="searchMinAmount" type="number" min="0" /></div>
+            <div><label>Đến (VNĐ)</label><input id="searchMaxAmount" type="number" min="0" /></div>
+            <div><label>Từ khóa (ghi chú)</label><input id="searchDescription" type="text" /></div>
+          </div>
+          <div style="margin-top:10px"><button class="btn btn-primary" onclick="performAdvancedSearch()">🔍 Tìm</button>
+            <button class="btn" onclick="clearSearchFilters()">🧹 Xóa</button></div>
+
+          <div class="expense-list" id="searchResults" style="margin-top:12px"></div>
+        </div>
+      </div>
+
+      <!-- REPORTS TAB -->
+      <div id="reports" class="tab-panel" style="display:none">
+        <div class="grid" style="grid-template-columns:1fr;gap:12px">
+          <div class="card">
+            <h3>📈 Báo cáo</h3>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn" onclick="updateStats('week', this)">Tuần</button>
+              <button class="btn btn-primary" onclick="updateStats('month', this)">Tháng</button>
+              <button class="btn" onclick="updateStats('year', this)">Năm</button>
+              <button class="btn" onclick="updateStats('all', this)">Tất cả</button>
+            </div>
+            <div id="summaryCards" class="summary-row" style="margin-top:12px"></div>
+          </div>
+
+          <div class="card">
+            <h3>📊 Biểu đồ</h3>
+            <div style="margin-bottom:8px">
+              <button class="btn" onclick="showChart('category', this)">Theo danh mục</button>
+              <button class="btn" onclick="showChart('monthly', this)">Theo tháng</button>
+              <button class="btn" onclick="showChart('daily', this)">Theo ngày</button>
+            </div>
+            <div style="margin-top:12px">
+              <canvas id="expenseChart" height="200"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LIMITS TAB -->
+      <div id="limits" class="tab-panel" style="display:none">
+        <div class="grid" style="grid-template-columns:1fr;gap:12px">
+          <div class="card">
+            <h3>⚠️ Giới hạn tổng</h3>
+            <div style="display:flex;gap:8px">
+              <div style="flex:1">
+                <label>Giới hạn hàng ngày (VNĐ)</label>
+                <input id="dailyLimit" type="number" min="0" />
+              </div>
+              <div style="flex:1">
+                <label>Giới hạn hàng tháng (VNĐ)</label>
+                <input id="monthlyLimit" type="number" min="0" />
+              </div>
+            </div>
+            <div style="margin-top:8px">
+              <button class="btn btn-success" onclick="saveLimits()">💾 Lưu giới hạn</button>
+            </div>
+
+            <div style="margin-top:12px">
+              <h4>📋 Giới hạn theo danh mục (Tháng)</h4>
+              <div id="categoryLimits"></div>
+              <div style="margin-top:8px">
+                <button class="btn btn-info" onclick="addCategoryLimit()">➕ Thêm</button>
+                <button class="btn" onclick="renderCategoryLimits()">🔁 Tải lại</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Tiến độ giới hạn</h3>
+            <div id="limitsProgress"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI TAB -->
+      <div id="ai" class="tab-panel" style="display:none">
+        <div class="grid" style="grid-template-columns:1fr 360px;gap:12px">
+          <div class="card">
+            <h3>🤖 AI Trợ Lý Chi Tiêu</h3>
+            <p class="small">Hỏi trực tiếp (ví dụ: "chi tiêu tháng này", "chi tiêu cho ăn uống", "lời khuyên tiết kiệm")</p>
+            <div style="display:flex;gap:8px">
+              <input id="ai-query-input" placeholder="Bạn muốn hỏi gì?" onkeydown="if(event.key==='Enter') sendAIQuery()" />
+              <button class="btn btn-primary" onclick="sendAIQuery()">Gửi</button>
+            </div>
+            <div style="margin-top:12px" class="chat-box" id="ai-response-box">
+              <div class="chat-message bot-message">Chào bạn! Tôi là AI Trợ Lý Chi Tiêu. Bạn cần phân tích hay tư vấn gì?</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3>Gợi ý câu hỏi</h3>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <button class="btn" onclick="fillQuery('Chi tiêu tháng này')">Chi tiêu tháng này</button>
+              <button class="btn" onclick="fillQuery('Chi tiêu cho ăn uống')">Chi tiêu cho ăn uống</button>
+              <button class="btn" onclick="fillQuery('Tôi có nên tiết kiệm hơn không?')">Lời khuyên tiết kiệm</button>
+              <button class="btn" onclick="fillQuery('Tổng chi tiêu hôm nay')">Tổng chi tiêu hôm nay</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div id="editModal" class="modal"><div class="box">
+    <h3>✏️ Chỉnh sửa giao dịch</h3>
+    <form id="editExpenseForm">
+      <input type="hidden" id="editId" />
+      <div><label>Ngày</label><input id="editDate" type="date" required /></div>
+      <div><label>Danh mục</label>
+        <select id="editCategory"><option>Ăn Uống</option><option>Di chuyển</option><option>Mua sắm</option><option>Học tập</option><option>Giải trí</option><option>Y tế</option><option>Hóa đơn</option><option>Khác</option></select>
+      </div>
+      <div><label>Số tiền</label><input id="editAmount" type="number" min="0" required /></div>
+      <div><label>Ghi chú</label><textarea id="editDescription" rows="2"></textarea></div>
+      <div style="margin-top:8px;display:flex;gap:8px">
+        <button class="btn btn-success" type="submit">Lưu</button>
+        <button class="btn" type="button" onclick="closeEditModal()">Hủy</button>
+      </div>
+    </form>
+  </div></div>
+
+  <!-- Confirm Delete Modal -->
+  <div id="confirmModal" class="modal"><div class="box">
+    <h3>Xác nhận xóa</h3>
+    <p>Bạn có chắc muốn xóa giao dịch này?</p>
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn btn-danger" onclick="confirmDelete()">Xóa</button>
+      <button class="btn" onclick="closeModal()">Hủy</button>
+    </div>
+  </div></div>
+
+<script>
+/* -------------------------
+   Dữ liệu & tiện ích (persistence)
+   ------------------------- */
+
+let expenses = [];
+let limits = { daily:0, monthly:0, categories: {} };
+let chart = null;
+let deleteId = null;
+let currentPeriod = 'month';
+let currentChartType = 'category';
+
+const CATEGORIES = ["Ăn Uống","Di chuyển","Mua sắm","Học tập","Giải trí","Y tế","Hóa đơn","Khác"];
+
+// Format tiền
+function formatMoney(amount){
+  return new Intl.NumberFormat('vi-VN',{style:'currency',currency:'VND'}).format(amount||0);
+}
+
+// Load/save
+function loadData(){
+  try {
+    expenses = JSON.parse(localStorage.getItem('expenses') || '[]');
+  } catch(e){ expenses = []; }
+  try {
+    const s = JSON.parse(localStorage.getItem('limits') || '{}');
+    limits = Object.assign({daily:0,monthly:0,categories:{}}, s);
+  } catch(e){ limits = {daily:0,monthly:0,categories:{}}; }
+}
+function saveData(){
+  localStorage.setItem('expenses', JSON.stringify(expenses));
+  localStorage.setItem('limits', JSON.stringify(limits));
+}
+
+/* -------------------------
+   UI: tab switch
+   ------------------------- */
+function showTab(id, btn){
+  document.querySelectorAll('.tab-button').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p=>p.style.display='none');
+  document.getElementById(id).style.display='block';
+  if(id==='reports'){ updateStats(currentPeriod); showChart(currentChartType); }
+  if(id==='limits'){ renderCategoryLimits(); updateLimitProgress(); }
+}
+
+/* -------------------------
+   TRANSACTIONS (add/edit/delete/list)
+   ------------------------- */
+document.getElementById('date').valueAsDate = new Date();
+
+document.getElementById('expenseForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  const d = document.getElementById('date').value;
+  const cat = document.getElementById('category').value;
+  const amt = parseFloat(document.getElementById('amount').value) || 0;
+  const desc = document.getElementById('description').value || '';
+  if(!d || !cat || amt<=0){ alert('Vui lòng nhập đầy đủ thông tin'); return; }
+  const exp = { id: Date.now(), date: d, category: cat, amount: amt, description: desc };
+  expenses.push(exp);
+  saveData();
+  updateTransactionList();
+  updateStats(currentPeriod);
+  updateLimitProgress();
+  checkLimitWarnings(exp);
+  this.reset();
+  document.getElementById('date').valueAsDate = new Date();
+  showNotification('✅ Đã thêm giao dịch');
+});
+
+function updateTransactionList(containerId='transactionsList', filtered=null){
+  const container = document.getElementById(containerId);
+  const search = document.getElementById('quickSearch').value.toLowerCase();
+  const sortBy = document.getElementById('sortBy').value;
+  let list = (filtered||expenses).slice();
+  if(containerId==='transactionsList' && search){
+    list = list.filter(e => e.date.includes(search) || e.category.toLowerCase().includes(search) || (e.description||'').toLowerCase().includes(search) || String(e.amount).includes(search));
+  }
+  list.sort((a,b)=>{
+    switch(sortBy){
+      case 'date-desc': return new Date(b.date)-new Date(a.date);
+      case 'date-asc': return new Date(a.date)-new Date(b.date);
+      case 'amount-desc': return b.amount - a.amount;
+      case 'amount-asc': return a.amount - b.amount;
+      default: return new Date(b.date)-new Date(a.date);
+    }
+  });
+  if(list.length===0){ container.innerHTML = '<p class="small">Chưa có giao dịch nào</p>'; return; }
+  container.innerHTML = list.map(e=>`
+    <div class="expense-item">
+      <div style="flex:1">
+        <div style="font-weight:700">${e.category} — ${formatMoney(e.amount)}</div>
+        <div class="small">${formatDate(e.date)} · ${e.description||'Không có ghi chú'}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
+        <div>
+          <button class="btn" onclick="openEditModal(${e.id})">✏️</button>
+          <button class="btn btn-danger" onclick="deleteExpense(${e.id})">🗑️</button>
+        </div>
+        <div class="small">ID: ${e.id}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function formatDate(d){ if(!d) return ''; const [y,m,day]=d.split('-'); return `${day}/${m}/${y}`; }
+
+function openEditModal(id){
+  const e = expenses.find(x=>x.id===id); if(!e) return;
+  document.getElementById('editId').value = e.id;
+  document.getElementById('editDate').value = e.date;
+  document.getElementById('editCategory').value = e.category;
+  document.getElementById('editAmount').value = e.amount;
+  document.getElementById('editDescription').value = e.description;
+  document.getElementById('editModal').style.display='flex';
+}
+function closeEditModal(){ document.getElementById('editModal').style.display='none'; }
+
+document.getElementById('editExpenseForm').addEventListener('submit', function(e){
+  e.preventDefault();
+  const id = parseInt(document.getElementById('editId').value);
+  const idx = expenses.findIndex(x=>x.id===id);
+  if(idx===-1){ alert('Không tìm thấy giao dịch'); closeEditModal(); return; }
+  expenses[idx].date = document.getElementById('editDate').value;
+  expenses[idx].category = document.getElementById('editCategory').value;
+  expenses[idx].amount = parseFloat(document.getElementById('editAmount').value) || 0;
+  expenses[idx].description = document.getElementById('editDescription').value;
+  saveData();
+  updateTransactionList();
+  updateStats(currentPeriod);
+  updateLimitProgress();
+  showNotification('✅ Đã cập nhật giao dịch');
+  closeEditModal();
+});
+
+function deleteExpense(id){
+  deleteId = id;
+  document.getElementById('confirmModal').style.display = 'flex';
+}
+function closeModal(){ document.getElementById('confirmModal').style.display='none'; deleteId=null; }
+function confirmDelete(){
+  if(!deleteId) return;
+  expenses = expenses.filter(e=>e.id!==deleteId);
+  saveData(); updateTransactionList(); updateStats(currentPeriod); updateLimitProgress();
+  showNotification('✅ Đã xóa giao dịch');
+  closeModal();
+}
+function deleteAllExpenses(){
+  if(confirm('⚠️ Bạn có chắc chắn muốn xóa TẤT CẢ giao dịch không?')){
+    expenses = []; saveData(); updateTransactionList(); updateStats(currentPeriod); updateLimitProgress();
+    showNotification('🗑️ Đã xóa toàn bộ giao dịch!');
+  }
+}
+
+/* -------------------------
+   CSV import/export (robust)
+   ------------------------- */
+function exportToCSV(){
+  const header = ['ID','Ngày','Danh Mục','Số Tiền','Ghi Chú'];
+  const rows = expenses.map(e=>[e.id,e.date,e.category,e.amount, (e.description||'').replace(/"/g,'""') ]);
+  let csv = header.join(',') + '\r\n';
+  rows.forEach(r => {
+    const line = `${r[0]},${r[1]},${r[2]},${r[3]},"${r[4]}"`;
+    csv += line + '\r\n';
+  });
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = `nhatkychitieu_${new Date().toISOString().slice(0,10)}.csv`; document.body.appendChild(a); a.click(); a.remove();
+  showNotification('💾 Đã xuất CSV');
+}
+
+function importFromCSV(input){
+  if(!input.files || !input.files[0]) return;
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const text = e.target.result;
+    const newExps = parseCSV(text);
+    if(newExps.length>0){
+      // Option: append or replace. We'll append but avoid duplicate IDs.
+      const existingIds = new Set(expenses.map(x=>x.id));
+      newExps.forEach(x=>{
+        if(existingIds.has(x.id)) x.id = Date.now()+Math.floor(Math.random()*10000);
+        expenses.push(x);
+      });
+      saveData(); updateTransactionList(); updateStats(currentPeriod); updateLimitProgress();
+      showNotification(`📂 Đã nhập ${newExps.length} giao dịch từ CSV`);
+    } else {
+      showNotification('⚠️ File CSV không hợp lệ hoặc trống');
+    }
+  };
+  reader.readAsText(input.files[0]); input.value = null;
+}
+
+// CSV parser that handles quotes & commas inside quotes
+function parseCSV(text){
+  const lines = text.split(/\r?\n/).filter(l=>l.trim()!=='');
+  if(lines.length<2) return [];
+  const data = [];
+  for(let i=1;i<lines.length;i++){
+    const row = parseCSVRow(lines[i]);
+    if(row.length>=4){
+      const id = parseInt(row[0]) || (Date.now()+i);
+      const date = row[1] || '';
+      const category = row[2] || 'Khác';
+      const amount = parseFloat(row[3]) || 0;
+      const desc = row[4] || '';
+      if(date && !isNaN(amount)) data.push({id,date,category,amount,description:desc});
+    }
+  }
+  return data;
+}
+function parseCSVRow(text){
+  const res=[]; let cur=''; let inQuotes=false;
+  for(let i=0;i<text.length;i++){
+    const ch = text[i];
+    if(ch === '"'){
+      if(inQuotes && text[i+1]==='"'){ cur+='"'; i++; } else inQuotes=!inQuotes;
+    } else if(ch===',' && !inQuotes){ res.push(cur); cur=''; } else cur+=ch;
+  }
+  res.push(cur);
+  return res.map(s=>s.trim().replace(/^"|"$/g,''));
+}
+
+/* -------------------------
+   SEARCH
+   ------------------------- */
+function performAdvancedSearch(){
+  const from = document.getElementById('searchFromDate').value;
+  const to = document.getElementById('searchToDate').value;
+  const cat = document.getElementById('searchCategory').value;
+  const minA = parseFloat(document.getElementById('searchMinAmount').value)||0;
+  const maxA = parseFloat(document.getElementById('searchMaxAmount').value)||Infinity;
+  const kw = (document.getElementById('searchDescription').value||'').toLowerCase();
+  const results = expenses.filter(e=>{
+    const ed = new Date(e.date);
+    if(from && ed < new Date(from)) return false;
+    if(to && ed > new Date(to)) return false;
+    if(cat && e.category!==cat) return false;
+    if(e.amount < minA || e.amount > maxA) return false;
+    if(kw && !(e.description||'').toLowerCase().includes(kw)) return false;
+    return true;
+  });
+  const container = document.getElementById('searchResults');
+  if(results.length===0) container.innerHTML = '<p class="small">Không tìm thấy</p>';
+  else {
+    container.innerHTML = `<h4>Kết quả: ${results.length} giao dịch</h4>` + results.map(e=>`
+      <div class="expense-item">
+        <div style="flex:1"><div style="font-weight:700">${e.category} — ${formatMoney(e.amount)}</div>
+        <div class="small">${formatDate(e.date)} · ${e.description||''}</div></div>
+        <div><button class="btn" onclick="openEditModal(${e.id})">✏️</button></div>
+      </div>
+    `).join('');
+  }
+  showNotification(`🔍 Tìm thấy ${results.length}`);
+}
+function clearSearchFilters(){ ['searchFromDate','searchToDate','searchCategory','searchMinAmount','searchMaxAmount','searchDescription'].forEach(id=>document.getElementById(id).value=''); document.getElementById('searchResults').innerHTML=''; showNotification('🧹 Đã xóa bộ lọc'); }
+
+/* -------------------------
+   STATS & CHARTS
+   ------------------------- */
+function filterByTimePeriod(period){
+  const now = new Date();
+  if(period==='all') return expenses.slice();
+  if(period==='year'){ const y = now.getFullYear(); return expenses.filter(e=>new Date(e.date).getFullYear()===y); }
+  if(period==='month'){ const y=now.getFullYear(), m=now.getMonth(); return expenses.filter(e=> {const d=new Date(e.date); return d.getFullYear()===y && d.getMonth()===m}); }
+  if(period==='week'){ const start = new Date(now); start.setDate(now.getDate() - now.getDay()); const startStr = start.toISOString().split('T')[0]; return expenses.filter(e=> e.date>=startStr); }
+  return expenses.slice();
+}
+
+function updateStats(period, btn){
+  currentPeriod = period;
+  const filtered = filterByTimePeriod(period);
+  const total = filtered.reduce((s,e)=>s+e.amount,0);
+  const avgDaily = calcAvgDaily(filtered, period);
+  const html = `
+    <div class="summary-card"><div>Tổng</div><div style="font-size:18px">${formatMoney(total)}</div></div>
+    <div class="summary-card" style="background:linear-gradient(90deg,#28a745,#11998e)"><div>Giao dịch</div><div style="font-size:18px">${filtered.length}</div></div>
+    <div class="summary-card" style="background:linear-gradient(90deg,#dc3545,#e74c3c)"><div>TB/Ngày</div><div style="font-size:18px">${formatMoney(avgDaily)}</div></div>
+  `;
+  document.getElementById('summaryCards').innerHTML = html;
+}
+
+function calcAvgDaily(filtered, period){
+  if(filtered.length===0) return 0;
+  if(period==='month') return Math.round(filtered.reduce((s,e)=>s+e.amount,0) / (new Date().getDate()));
+  if(period==='week') return Math.round(filtered.reduce((s,e)=>s+e.amount,0) / 7);
+  if(period==='year'){ const start = new Date(new Date().getFullYear(),0,1); const days = Math.ceil((new Date()-start)/(1000*60*60*24)); return Math.round(filtered.reduce((s,e)=>s+e.amount,0)/days); }
+  // all
+  const dates = filtered.map(e=>new Date(e.date));
+  const min = new Date(Math.min(...dates)), max = new Date(Math.max(...dates));
+  const days = Math.max(1, Math.ceil((max-min)/(1000*60*60*24)));
+  return Math.round(filtered.reduce((s,e)=>s+e.amount,0)/days);
+}
+
+function showChart(type, btn){
+  currentChartType = type;
+  const ctx = document.getElementById('expenseChart').getContext('2d');
+  if(chart) chart.destroy();
+  if(type==='category'){
+    const totals = {};
+    CATEGORIES.forEach(c=>totals[c]=0);
+    expenses.forEach(e=>{ if(!totals[e.category]) totals[e.category]=0; totals[e.category]+=e.amount; });
+    const labels = Object.keys(totals).filter(k=>totals[k]>0);
+    const data = labels.map(k=>totals[k]);
+    chart = new Chart(ctx,{type:'pie',data:{labels, datasets:[{data}]}, options:{responsive:true}});
+  } else if(type==='monthly'){
+    // monthly totals for last 12 months
+    const now = new Date(); const labels=[]; const data=[];
+    for(let i=11;i>=0;i--){ const d=new Date(now.getFullYear(), now.getMonth()-i,1); const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; labels.push(`${d.getMonth()+1}/${d.getFullYear()}`); const total = expenses.filter(e=>e.date.startsWith(ym)).reduce((s,ex)=>s+ex.amount,0); data.push(total); }
+    chart = new Chart(ctx,{type:'bar',data:{labels,data}, options:{responsive:true}});
+  } else {
+    // daily for current month
+    const now = new Date(); const days = new Date(now.getFullYear(), now.getMonth()+1,0).getDate();
+    const labels=[]; const data=[];
+    for(let d=1; d<=days; d++){ const ds = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; labels.push(String(d)); const total = expenses.filter(e=>e.date===ds).reduce((s,ex)=>s+ex.amount,0); data.push(total); }
+    chart = new Chart(ctx,{type:'line',data:{labels,data}, options:{responsive:true}});
+  }
+}
+
+/* -------------------------
+   LIMITS
+   ------------------------- */
+function renderCategoryLimits(){
+  const container = document.getElementById('categoryLimits');
+  container.innerHTML = '';
+  const keys = Object.keys(limits.categories);
+  // show existing categories first
+  CATEGORIES.forEach(cat=>{
+    const val = limits.categories[cat] || 0;
+    const id = 'limit-'+cat.replace(/\s/g,'_');
+    const div = document.createElement('div'); div.className='small';
+    div.innerHTML = `<label>${cat}</label><div style="display:flex;gap:8px;margin-top:6px"><input id="${id}" type="number" min="0" value="${val}" /><button class="btn btn-danger" onclick="removeCategoryLimit('${cat}')">Xóa</button></div><hr/>`;
+    container.appendChild(div);
+  });
+}
+function addCategoryLimit(){
+  // open prompt to select
+  const cat = prompt('Nhập tên danh mục (ví dụ: Ăn Uống)'); if(!cat) return;
+  const val = parseFloat(prompt('Giới hạn tháng (VNĐ)')) || 0;
+  limits.categories[cat]=val; saveData(); renderCategoryLimits(); showNotification('✅ Đã thêm giới hạn danh mục');
+}
+function removeCategoryLimit(cat){ delete limits.categories[cat]; saveData(); renderCategoryLimits(); updateLimitProgress(); }
+
+function saveLimits(){
+  limits.daily = parseFloat(document.getElementById('dailyLimit').value) || 0;
+  limits.monthly = parseFloat(document.getElementById('monthlyLimit').value) || 0;
+  // read inputs in categoryLimits area
+  document.querySelectorAll('#categoryLimits input[type="number"]').forEach(inp=>{
+    const label = inp.id.replace('limit-','').replace(/_/g,' ');
+    if(inp.value && Number(inp.value)>0) limits.categories[label] = Number(inp.value);
+  });
+  saveData(); updateLimitProgress(); showNotification('💾 Đã lưu giới hạn');
+}
+
+function updateLimitProgress(){
+  const container = document.getElementById('limitsProgress');
+  container.innerHTML = '';
+  // daily
+  const today = new Date().toISOString().split('T')[0];
+  const dailySpent = expenses.filter(e=>e.date===today).reduce((s,e)=>s+e.amount,0);
+  const monthlySpent = expenses.filter(e=> e.date.startsWith(new Date().toISOString().slice(0,7))).reduce((s,e)=>s+e.amount,0);
+  const dailyPct = limits.daily>0 ? Math.min(100, Math.round((dailySpent/limits.daily)*100)) : 0;
+  const monthlyPct = limits.monthly>0 ? Math.min(100, Math.round((monthlySpent/limits.monthly)*100)) : 0;
+  container.innerHTML += `<div><strong>Hôm nay:</strong> ${formatMoney(dailySpent)} / ${formatMoney(limits.daily)} <div class="progress-bar" style="margin-top:6px"><div class="progress-fill" style="width:${dailyPct}%"></div></div></div>`;
+  container.innerHTML += `<div style="margin-top:8px"><strong>Tháng này:</strong> ${formatMoney(monthlySpent)} / ${formatMoney(limits.monthly)} <div class="progress-bar" style="margin-top:6px"><div class="progress-fill" style="width:${monthlyPct}%"></div></div></div>`;
+  // per-category
+  Object.keys(limits.categories).forEach((cat, idx)=>{
+    const limit = limits.categories[cat];
+    const spent = expenses.filter(e=>e.category===cat && e.date.startsWith(new Date().toISOString().slice(0,7))).reduce((s,e)=>s+e.amount,0);
+    const pct = limit>0 ? Math.min(100, Math.round((spent/limit)*100)) : 0;
+    container.innerHTML += `<div style="margin-top:8px"><strong>${cat}:</strong> ${formatMoney(spent)} / ${formatMoney(limit)} <div class="progress-bar" style="margin-top:6px"><div class="progress-fill" style="width:${pct}%"></div></div></div>`;
+  });
+}
+
+/* -------------------------
+   NOTIFICATION small helper
+   ------------------------- */
+function showNotification(msg){
+  const area = document.getElementById('notifArea');
+  area.textContent = msg;
+  setTimeout(()=>{ if(area.textContent===msg) area.textContent = 'Không có thông báo nào'; },3500);
+}
+
+/* -------------------------
+   AI Trợ Lý (local logic + mock external)
+   - handle common patterns (chi tiêu tháng/ăn uống/tiết kiệm)
+   - if unknown, call mockExternalSearch() to simulate API
+   ------------------------- */
+function appendAIMessage(text, sender='bot'){
+  const box = document.getElementById('ai-response-box');
+  const div = document.createElement('div'); div.className = 'chat-message ' + (sender==='user'?'user-message':'bot-message');
+  div.innerHTML = text;
+  box.appendChild(div); box.scrollTop = box.scrollHeight;
+}
+
+function fillQuery(q){ document.getElementById('ai-query-input').value = q; }
+
+async function sendAIQuery(){
+  const qEl = document.getElementById('ai-query-input');
+  const q = qEl.value.trim(); if(!q) return;
+  appendAIMessage(q,'user'); qEl.value='';
+  appendAIMessage('🤖 Đang xử lý...', 'bot');
+  const resp = await handleAssistantQuery(q);
+  // replace last bot placeholder with real answer
+  const box = document.getElementById('ai-response-box');
+  // remove last bot placeholder
+  const items = box.querySelectorAll('.bot-message');
+  if(items.length) items[items.length-1].remove();
+  appendAIMessage(resp,'bot');
+}
+
+// Main handler (keywords + heuristics)
+async function handleAssistantQuery(query){
+  const lower = query.toLowerCase();
+  const today = new Date();
+  const currentMonth = today.toISOString().slice(0,7);
+  const currentDay = today.toISOString().split('T')[0];
+
+  // 1) Tổng chi tiêu tháng này / hôm nay
+  if(lower.includes('chi tiêu tháng này') || lower.includes('tổng chi tiêu tháng')){
+    const monthly = expenses.filter(e=>e.date.startsWith(currentMonth)).reduce((s,e)=>s+e.amount,0);
+    const daily = expenses.filter(e=>e.date===currentDay).reduce((s,e)=>s+e.amount,0);
+    let res = `Tổng chi tiêu trong tháng này: <strong>${formatMoney(monthly)}</strong>.<br>- Hôm nay: ${formatMoney(daily)}.`;
+    if(limits.daily>0){
+      if(daily>limits.daily) res += ` ⚠️ Bạn đã vượt giới hạn hàng ngày ${formatMoney(limits.daily)}.`;
+      else res += ` Còn ${formatMoney(limits.daily - daily)} so với giới hạn hàng ngày.`;
+    }
+    return res;
+  }
+
+  // 2) Chi tiêu cho <danh mục>
+  if(lower.includes('chi tiêu cho') || lower.includes('chi tiêu để') || lower.includes('chi tiêu _')){
+    // find category
+    const found = CATEGORIES.find(c=> lower.includes(c.toLowerCase()));
+    if(!found) return `Vui lòng chỉ rõ danh mục (ví dụ: "chi tiêu cho ăn uống"). Các danh mục: ${CATEGORIES.join(', ')}.`;
+    const total = expenses.filter(e=>e.date.startsWith(currentMonth) && e.category===found).reduce((s,e)=>s+e.amount,0);
+    let resp = `Tổng chi tiêu cho <strong>${found}</strong> trong tháng này: <strong>${formatMoney(total)}</strong>.`;
+    const lim = limits.categories[found]||0;
+    if(lim>0){ if(total>lim) resp += ` ⚠️ Đã vượt giới hạn ${formatMoney(lim)}.`; else resp += ` Còn ${formatMoney(lim-total)} so với giới hạn.`; }
+    return resp;
+  }
+
+  // 3) Lời khuyên / tiết kiệm
+  if(lower.includes('tiết kiệm') || lower.includes('lời khuyên')){
+    const monthly = expenses.filter(e=>e.date.startsWith(currentMonth)).reduce((s,e)=>s+e.amount,0);
+    if(monthly===0) return "Bạn chưa ghi chép giao dịch nào trong tháng này. Hãy bắt đầu ghi chép để tôi có thể phân tích và đưa lời khuyên cụ thể.";
+    if(monthly>5000000) return "Bạn đang chi khá nhiều. Gợi ý: đặt giới hạn hàng ngày và giới hạn theo danh mục, giảm bớt chi tiêu cho mong muốn và tăng tỉ lệ tiết kiệm (ví dụ 50/30/20).";
+    return "Lời khuyên: kiểm tra biểu đồ theo danh mục và cân nhắc giảm 1-2 danh mục chi tiêu lớn để tiết kiệm dần.";
+  }
+
+  // 4) Các câu hỏi khác -> dùng mock external search
+  const external = await mockExternalSearch(query);
+  return `Mình chưa có logic cụ thể cho câu hỏi này. Kết quả tìm kiếm (giả lập):<br><pre>${external}</pre><br>⚠️ Lưu ý: để thông minh hơn, tích hợp API AI bên ngoài (OpenAI/Gemini) vào hàm xử lý.`;
+}
+
+// Mock external search (dùng khi cần)
+async function mockExternalSearch(query){
+  await new Promise(r=>setTimeout(r,700));
+  const q = query.toLowerCase();
+  if(q.includes('thời tiết') || q.includes('nhiệt độ')) return "Dự báo (giả lập): Nắng, 26-33°C.";
+  if(q.includes('thủ đô')) return "Thủ đô Việt Nam là Hà Nội.";
+  if(q.includes('phở')) return "Phở là món quốc hồn quốc túy Việt Nam.";
+  return `Không tìm thấy dữ liệu chính xác cho: "${query}". (Phản hồi giả lập)`;
+}
+
+/* -------------------------
+   Helpers: UI init
+   ------------------------- */
+function init(){
+  loadData();
+  updateTransactionList();
+  renderCategoryLimits();
+  updateLimitProgress();
+  showTab('transactions', document.querySelector('.tab-button'));
+  // ensure some UI inits
+  updateStats('month'); showChart('category');
+}
+init();
+
+/* -------------------------
+   Utilities referenced above (kept bottom)
+   ------------------------- */
+function checkLimitWarnings(expense){
+  // if expense caused limit to be exceeded -> notify
+  const today = new Date().toISOString().split('T')[0];
+  const dailySpend = expenses.filter(e=>e.date===today).reduce((s,e)=>s+e.amount,0);
+  if(limits.daily>0 && dailySpend>limits.daily) showNotification(`⚠️ Vượt giới hạn hàng ngày (${formatMoney(limits.daily)})`);
+  const monthlySpend = expenses.filter(e=>e.date.startsWith(new Date().toISOString().slice(0,7))).reduce((s,e)=>s+e.amount,0);
+  if(limits.monthly>0 && monthlySpend>limits.monthly) showNotification(`⚠️ Vượt giới hạn tháng (${formatMoney(limits.monthly)})`);
+  const catLimit = limits.categories[expense.category] || 0;
+  if(catLimit>0){
+    const catSpent = expenses.filter(e=>e.date.startsWith(new Date().toISOString().slice(0,7)) && e.category===expense.category).reduce((s,e)=>s+e.amount,0);
+    if(catSpent>catLimit) showNotification(`⚠️ Vượt giới hạn cho ${expense.category}`);
+  }
+}
+</script>
+</body>
+</html>
